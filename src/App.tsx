@@ -9,13 +9,10 @@ import { Profile } from './components/Profile';
 import { Notifications } from './components/Notifications';
 import { Tools } from './components/Tools';
 import { Community } from './components/Community';
-import { AuthWrapper } from './components/AuthWrapper';
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader } from './components/ui/dialog';
 import { VisuallyHidden } from './components/ui/visually-hidden';
 import { Button } from './components/ui/button';
 import { Plus } from 'lucide-react';
-import { authService } from './firebase/auth';
-import { useFirebaseData } from './hooks/useFirebaseData';
 
 interface FoodItem {
   id: string;
@@ -56,55 +53,160 @@ interface HistoryItem {
 }
 
 export default function App() {
-  // Auth and UI state
-  const [user, setUser] = useState(null);
-  const [authLoading, setAuthLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [previousTab, setPreviousTab] = useState('dashboard');
   const [showAddFoodModal, setShowAddFoodModal] = useState(false);
   const [recipeSearchTerm, setRecipeSearchTerm] = useState<string>('');
+  const [foodItems, setFoodItems] = useState<FoodItem[]>([]);
   const [userScore, setUserScore] = useState(1950);
+  const [wasteHistory, setWasteHistory] = useState<HistoryItem[]>([]);
+  const [usageHistory, setUsageHistory] = useState<HistoryItem[]>([]);
+  const [customRecipes, setCustomRecipes] = useState<Recipe[]>([]);
+  const [bookmarkedRecipes, setBookmarkedRecipes] = useState<string[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [userProfile, setUserProfile] = useState({
+    name: 'Alex Smith',
+    email: 'alex@example.com',
+    streakDays: 4,
+    totalSaved: 156.78,
+    wasteReduction: 73
+  });
 
-  // Firebase data hook
-  const {
-    foodItems,
-    customRecipes,
-    bookmarkedRecipes,
-    notifications,
-    wasteHistory,
-    usageHistory,
-    userProfile,
-    loading: dataLoading,
-    updateUserProfile,
-    addFoodItem,
-    updateFoodItem,
-    deleteFoodItem,
-    addCustomRecipe,
-    toggleBookmark,
-    addUsageEntry,
-    addWasteEntry,
-    markNotificationRead
-  } = useFirebaseData(user);
-
-  // Listen for auth state changes
+  // Initialize with sample data
   useEffect(() => {
-    const unsubscribe = authService.onAuthStateChanged((user) => {
-      setUser(user);
-      setAuthLoading(false);
-    });
+    const sampleItems: FoodItem[] = [
+      {
+        id: '1',
+        name: 'Apples',
+        expirationDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000), // 2 days
+        quantity: 6,
+        unit: 'pieces',
+        price: 3.99,
+        category: 'Fruits & Vegetables'
+      },
+      {
+        id: '2',
+        name: 'Milk',
+        expirationDate: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000), // 1 day
+        quantity: 1,
+        unit: 'liter',
+        price: 2.49,
+        category: 'Dairy & Eggs'
+      },
+      {
+        id: '3',
+        name: 'Chicken Breast',
+        expirationDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // 3 days
+        quantity: 500,
+        unit: 'grams',
+        price: 8.99,
+        category: 'Meat & Poultry'
+      },
+      {
+        id: '4',
+        name: 'Bread',
+        expirationDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000), // 5 days
+        quantity: 1,
+        unit: 'loaf',
+        price: 2.99,
+        category: 'Bakery'
+      },
+      {
+        id: '5',
+        name: 'Yogurt',
+        expirationDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+        quantity: 4,
+        unit: 'cups',
+        price: 4.99,
+        category: 'Dairy & Eggs'
+      }
+    ];
 
-    return unsubscribe;
+    setFoodItems(sampleItems);
+
+    // Sample waste and usage history
+    const sampleWaste: HistoryItem[] = [
+      {
+        date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+        itemName: 'Lettuce',
+        value: 2.99,
+        category: 'Fruits & Vegetables'
+      },
+      {
+        date: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
+        itemName: 'Bananas',
+        value: 1.99,
+        category: 'Fruits & Vegetables'
+      }
+    ];
+
+    const sampleUsage: HistoryItem[] = [
+      {
+        date: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+        itemName: 'Eggs',
+        value: 3.49,
+        category: 'Dairy & Eggs'
+      },
+      {
+        date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+        itemName: 'Tomatoes',
+        value: 4.99,
+        category: 'Fruits & Vegetables'
+      },
+      {
+        date: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+        itemName: 'Ground Beef',
+        value: 6.99,
+        category: 'Meat & Poultry'
+      }
+    ];
+
+    setWasteHistory(sampleWaste);
+    setUsageHistory(sampleUsage);
+
+    // Sample notifications
+    const sampleNotifications: Notification[] = [
+      {
+        id: '1',
+        title: 'Food Expiring Soon!',
+        message: 'Your milk expires in 1 day',
+        type: 'expiration',
+        date: new Date(),
+        isRead: false,
+        foodItemId: '2'
+      },
+      {
+        id: '2',
+        title: 'Achievement Unlocked!',
+        message: 'You saved $50 this month',
+        type: 'achievement',
+        date: new Date(Date.now() - 24 * 60 * 60 * 1000),
+        isRead: false
+      },
+      {
+        id: '3',
+        title: 'Recipe Suggestion',
+        message: 'Try apple pie with your expiring apples',
+        type: 'reminder',
+        date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+        isRead: true
+      }
+    ];
+
+    setNotifications(sampleNotifications);
   }, []);
 
-  const handleAddFood = async (newFood: Omit<FoodItem, 'id'>) => {
-    const itemId = await addFoodItem(newFood);
-    if (itemId) {
-      setUserScore(prev => prev + 25); // Points for adding food
-      setShowAddFoodModal(false); // Close modal after adding
-    }
+  const handleAddFood = (newFood: Omit<FoodItem, 'id'>) => {
+    const foodWithId = {
+      ...newFood,
+      id: Math.random().toString(36).substr(2, 9)
+    };
+    setFoodItems(prev => [...prev, foodWithId]);
+    setUserScore(prev => prev + 25); // Points for adding food
+    setShowAddFoodModal(false); // Close modal after adding
   };
 
-  const handleUseItem = async (itemId: string, usedQuantity?: number) => {
+  const handleUseItem = (itemId: string, usedQuantity?: number) => {
     const item = foodItems.find(f => f.id === itemId);
     if (item) {
       const quantityUsed = usedQuantity || item.quantity;
@@ -117,14 +219,18 @@ export default function App() {
         value: proportionalValue,
         category: item.category
       };
-      await addUsageEntry(usageEntry);
+      setUsageHistory(prev => [...prev, usageEntry]);
       
       if (quantityUsed >= item.quantity) {
         // Remove completely
-        await deleteFoodItem(itemId);
+        setFoodItems(prev => prev.filter(f => f.id !== itemId));
       } else {
         // Update quantity
-        await updateFoodItem(itemId, { quantity: item.quantity - quantityUsed });
+        setFoodItems(prev => prev.map(f => 
+          f.id === itemId 
+            ? { ...f, quantity: f.quantity - quantityUsed }
+            : f
+        ));
       }
       
       // Add points for using food before expiration
@@ -132,23 +238,36 @@ export default function App() {
     }
   };
 
-  const handleEditItem = async (itemId: string, updatedItem: Omit<FoodItem, 'id'>) => {
-    await updateFoodItem(itemId, updatedItem);
+  const handleEditItem = (itemId: string, updatedItem: Omit<FoodItem, 'id'>) => {
+    setFoodItems(prev => prev.map(f => 
+      f.id === itemId 
+        ? { ...f, ...updatedItem }
+        : f
+    ));
   };
 
-  const handleAddCustomRecipe = async (recipe: Omit<Recipe, 'id' | 'isCustom'>) => {
-    const recipeId = await addCustomRecipe(recipe);
-    if (recipeId) {
-      setUserScore(prev => prev + 25); // Points for adding recipe
-    }
+  const handleAddCustomRecipe = (recipe: Omit<Recipe, 'id' | 'isCustom'>) => {
+    const newRecipe: Recipe = {
+      ...recipe,
+      id: Math.random().toString(36).substr(2, 9),
+      isCustom: true
+    };
+    setCustomRecipes(prev => [...prev, newRecipe]);
+    setUserScore(prev => prev + 25); // Points for adding recipe
   };
 
-  const handleBookmarkRecipe = async (recipeId: string) => {
-    await toggleBookmark(recipeId);
+  const handleBookmarkRecipe = (recipeId: string) => {
+    setBookmarkedRecipes(prev => 
+      prev.includes(recipeId) 
+        ? prev.filter(id => id !== recipeId)
+        : [...prev, recipeId]
+    );
   };
 
-  const handleMarkNotificationRead = async (notificationId: string) => {
-    await markNotificationRead(notificationId);
+  const handleMarkNotificationRead = (notificationId: string) => {
+    setNotifications(prev => prev.map(n => 
+      n.id === notificationId ? { ...n, isRead: true } : n
+    ));
   };
 
   const handleTabChange = (newTab: string) => {
@@ -166,10 +285,6 @@ export default function App() {
   const handleFindRecipe = (item: FoodItem) => {
     setRecipeSearchTerm(item.name);
     setActiveTab('recipes');
-  };
-
-  const handleSignOut = async () => {
-    await authService.signOut();
   };
 
   const renderContent = () => {
@@ -209,14 +324,8 @@ export default function App() {
       case 'profile':
         return (
           <Profile 
-            userProfile={userProfile || {
-              name: 'Loading...',
-              email: '',
-              streakDays: 0,
-              totalSaved: 0,
-              wasteReduction: 0
-            }}
-            onUpdateProfile={updateUserProfile}
+            userProfile={userProfile}
+            onUpdateProfile={setUserProfile}
             userScore={userScore}
             onBack={() => setActiveTab('dashboard')}
           />
@@ -259,19 +368,12 @@ export default function App() {
   };
 
   return (
-    <AuthWrapper user={user} loading={authLoading || dataLoading}>
+    <>
       <Layout 
         activeTab={activeTab} 
         onTabChange={handleTabChange}
         notifications={notifications}
-        userProfile={userProfile || {
-          name: 'Loading...',
-          email: '',
-          streakDays: 0,
-          totalSaved: 0,
-          wasteReduction: 0
-        }}
-        onSignOut={handleSignOut}
+        userProfile={userProfile}
       >
         {renderContent()}
       </Layout>
@@ -300,6 +402,6 @@ export default function App() {
           <AddFood onAddFood={handleAddFood} />
         </DialogContent>
       </Dialog>
-    </AuthWrapper>
+    </>
   );
 }

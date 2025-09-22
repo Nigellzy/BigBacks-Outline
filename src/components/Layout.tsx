@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Bell, Home, PlusCircle, BarChart3, Trophy, Settings, Menu, User, ChefHat, Wrench, Users, LogOut } from 'lucide-react';
+import { Bell, Home, PlusCircle, BarChart3, Trophy, Settings, Menu, User, ChefHat, Wrench, Users } from 'lucide-react';
 import { Button } from './ui/button';
 import { Sheet, SheetContent, SheetTrigger } from './ui/sheet';
 import { Badge } from './ui/badge';
@@ -29,10 +29,9 @@ interface LayoutProps {
   onTabChange: (tab: string) => void;
   notifications: Notification[];
   userProfile: UserProfile;
-  onSignOut?: () => void;
 }
 
-export function Layout({ children, activeTab, onTabChange, notifications, userProfile, onSignOut }: LayoutProps) {
+export function Layout({ children, activeTab, onTabChange, notifications, userProfile }: LayoutProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const navigation = [
@@ -103,16 +102,6 @@ export function Layout({ children, activeTab, onTabChange, notifications, userPr
             <User className="h-4 w-4 mr-3" />
             Profile
           </Button>
-          {onSignOut && (
-            <Button 
-              variant="ghost" 
-              className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50"
-              onClick={onSignOut}
-            >
-              <LogOut className="h-4 w-4 mr-3" />
-              Sign Out
-            </Button>
-          )}
         </div>
       </div>
 
@@ -163,19 +152,6 @@ export function Layout({ children, activeTab, onTabChange, notifications, userPr
                       <User className="h-4 w-4 mr-3" />
                       Profile
                     </Button>
-                    {onSignOut && (
-                      <Button 
-                        variant="ghost" 
-                        className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50"
-                        onClick={() => {
-                          onSignOut();
-                          setMobileMenuOpen(false);
-                        }}
-                      >
-                        <LogOut className="h-4 w-4 mr-3" />
-                        Sign Out
-                      </Button>
-                    )}
                   </div>
                 </div>
               </SheetContent>
