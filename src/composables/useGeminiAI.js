@@ -10,13 +10,34 @@ const ai = new GoogleGenAI({
 })
 
 export function useGeminiAI() {
-  const generateResponse = async (userMessage, context = {}) => {
+  // Shared function to handle AI requests and common error/loading patterns
+  const makeAIRequest = async (prompt, errorMessage = 'Failed to get AI response. Please try again.') => {
     isLoading.value = true
     error.value = null
 
     try {
-      // Construct the prompt with context and constraints
-      const systemPrompt = `You are FoodBot, an AI assistant for the FoodSaver app that helps users reduce food waste and manage their food inventory efficiently.
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: prompt,
+        config: {
+            thinkingConfig: {
+                thinkingBudget: 0, // Disables thinking
+            },
+        }
+      })
+
+      return response.text
+    } catch (err) {
+      error.value = errorMessage
+      console.error('Gemini AI Error:', err)
+      throw err
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  const generateResponse = async (userMessage, context = {}) => {
+    const systemPrompt = `You are FoodBot, an AI assistant for the FoodSaver app that helps users reduce food waste and manage their food inventory efficiently.
 
 Context about the user:
 - Current food inventory: ${context.inventoryCount || 0} items
@@ -33,46 +54,13 @@ Guidelines for responses:
 
 User message: ${userMessage}`
 
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: systemPrompt,
-        config: {
-            thinkingConfig: {
-                thinkingBudget: 0, // Disables thinking
-            },
-        }
-      })
-
-      return response.text
-    } catch (err) {
-      error.value = 'Failed to get AI response. Please try again.'
-      console.error('Gemini AI Error:', err)
-      throw err
-    } finally {
-      isLoading.value = false
-    }
+    return makeAIRequest(systemPrompt)
   }
 
   const generateFoodSuggestions = async (expiringItems) => {
-    isLoading.value = true
-    error.value = null
-
-    try {
-      const prompt = `Given these food items that are expiring soon: ${expiringItems.join(', ')}, suggest 2-3 simple recipes or ways to use them. Keep each suggestion brief (one sentence) and focus on reducing waste.`
-
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: prompt,
-      })
-
-      return response.text
-    } catch (err) {
-      error.value = 'Failed to generate suggestions. Please try again.'
-      console.error('Gemini AI Error:', err)
-      throw err
-    } finally {
-      isLoading.value = false
-    }
+    const prompt = `Given these food items that are expiring soon: ${expiringItems.join(', ')}, suggest 2-3 simple recipes or ways to use them. Keep each suggestion brief (one sentence) and focus on reducing waste.`
+    
+    return makeAIRequest(prompt, 'Failed to generate suggestions. Please try again.')
   }
 
   return {
