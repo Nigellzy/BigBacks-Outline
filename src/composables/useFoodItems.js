@@ -1,7 +1,9 @@
 import { ref, computed } from 'vue'
 
+// Global state - singleton pattern to ensure all components share the same data
 const foodItems = ref([])
 const STORAGE_KEY = 'foodsaver_food_items'
+let isInitialized = false
 
 export function useFoodItems() {
   const activeFoodItems = computed(() =>
@@ -54,12 +56,25 @@ export function useFoodItems() {
   )
 
   const loadFoodItems = () => {
+    if (isInitialized) return
+    
     const stored = localStorage.getItem(STORAGE_KEY)
     if (stored) {
-      foodItems.value = JSON.parse(stored)
+      const loadedItems = JSON.parse(stored)
+      // Remove duplicates based on ID
+      const uniqueItems = loadedItems.filter((item, index, self) => 
+        index === self.findIndex(i => i.id === item.id)
+      )
+      foodItems.value = uniqueItems
+      
+      // If we found duplicates, save the cleaned data
+      if (uniqueItems.length !== loadedItems.length) {
+        saveFoodItems()
+      }
     } else {
       initializeSampleData()
     }
+    isInitialized = true
   }
 
   const saveFoodItems = () => {
@@ -69,7 +84,7 @@ export function useFoodItems() {
   const addFoodItem = (item) => {
     const newItem = {
       ...item,
-      id: Date.now().toString(),
+      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       userId: '1',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -334,7 +349,18 @@ export function useFoodItems() {
       }
     ]
 
-    samples.forEach(sample => addFoodItem(sample))
+    const baseTime = Date.now()
+    samples.forEach((sample, index) => {
+      const newItem = {
+        ...sample,
+        id: `${baseTime + index}-${Math.random().toString(36).substr(2, 9)}`,
+        userId: '1',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }
+      foodItems.value.push(newItem)
+    })
+    saveFoodItems()
   }
 
   return {

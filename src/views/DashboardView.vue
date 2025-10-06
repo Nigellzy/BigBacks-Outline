@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useUser } from '../composables/useUser'
 import { useFoodItems } from '../composables/useFoodItems'
 import { useActivities } from '../composables/useActivities'
@@ -28,6 +28,7 @@ const selectedFood = ref(null)
 const searchQuery = ref('')
 const selectedCategory = ref('All Categories')
 const sortBy = ref('expiration')
+const sortDirection = ref('asc') // 'asc' or 'desc'
 
 const categories = [
   'All Categories',
@@ -44,26 +45,82 @@ const categories = [
 ]
 
 const filteredFoodItems = computed(() => {
-  let items = activeFoodItems.value
+  // Get unique items first to prevent duplicate key errors
+  const uniqueItems = activeFoodItems.value.filter((item, index, self) => 
+    index === self.findIndex(i => i.id === item.id)
+  )
+  
+  let items = [...uniqueItems] // Always work with a copy
 
-  if (searchQuery.value) {
+  // Apply search filter
+  if (searchQuery.value && searchQuery.value.trim()) {
+    const searchTerm = searchQuery.value.toLowerCase().trim()
     items = items.filter(item =>
-      item.name.toLowerCase().includes(searchQuery.value.toLowerCase())
+      item.name && item.name.toLowerCase().includes(searchTerm)
     )
   }
 
-  if (selectedCategory.value !== 'All Categories') {
-    items = items.filter(item => item.category === selectedCategory.value)
+  // Apply category filter
+  if (selectedCategory.value && selectedCategory.value !== 'All Categories') {
+    items = items.filter(item => 
+      item.category === selectedCategory.value
+    )
   }
 
-  if (sortBy.value === 'expiration') {
-    items = [...items].sort((a, b) =>
-      new Date(a.expirationDate).getTime() - new Date(b.expirationDate).getTime()
-    )
-  } else if (sortBy.value === 'name') {
-    items = [...items].sort((a, b) => a.name.localeCompare(b.name))
-  } else if (sortBy.value === 'category') {
-    items = [...items].sort((a, b) => a.category.localeCompare(b.category))
+  // Apply sorting
+  const direction = sortDirection.value === 'desc' ? -1 : 1
+  
+  switch (sortBy.value) {
+    case 'expiration':
+      items.sort((a, b) => {
+        const dateA = new Date(a.expirationDate)
+        const dateB = new Date(b.expirationDate)
+        
+        if (isNaN(dateA.getTime()) && isNaN(dateB.getTime())) return 0
+        if (isNaN(dateA.getTime())) return 1
+        if (isNaN(dateB.getTime())) return -1
+        
+        return (dateA.getTime() - dateB.getTime()) * direction
+      })
+      break
+      
+    case 'name':
+      items.sort((a, b) => {
+        const nameA = (a.name || '').toLowerCase()
+        const nameB = (b.name || '').toLowerCase()
+        return nameA.localeCompare(nameB) * direction
+      })
+      break
+      
+    case 'category':
+      items.sort((a, b) => {
+        const catA = a.category || ''
+        const catB = b.category || ''
+        const categoryCompare = catA.localeCompare(catB) * direction
+        if (categoryCompare !== 0) return categoryCompare
+        
+        // Secondary sort by name
+        const nameA = (a.name || '').toLowerCase()
+        const nameB = (b.name || '').toLowerCase()
+        return nameA.localeCompare(nameB)
+      })
+      break
+      
+    case 'quantity':
+      items.sort((a, b) => {
+        const qtyA = parseFloat(a.quantity) || 0
+        const qtyB = parseFloat(b.quantity) || 0
+        return (qtyB - qtyA) * direction
+      })
+      break
+      
+    case 'price':
+      items.sort((a, b) => {
+        const priceA = parseFloat(a.price) || 0
+        const priceB = parseFloat(b.price) || 0
+        return (priceB - priceA) * direction
+      })
+      break
   }
 
   return items
@@ -102,6 +159,24 @@ const handleDeleteItem = (item) => {
   }
 }
 
+const toggleSortDirection = () => {
+  sortDirection.value = sortDirection.value === 'asc' ? 'desc' : 'asc'
+}
+
+const getSortButtonIcon = computed(() => {
+  return sortDirection.value === 'asc' ? 'bi bi-sort-up' : 'bi bi-sort-down'
+})
+
+const getSortButtonTitle = computed(() => {
+  const direction = sortDirection.value === 'asc' ? 'Ascending' : 'Descending'
+  return `Sort ${direction}`
+})
+
+// Reset sort direction when sort criteria changes for better UX
+watch(sortBy, () => {
+  sortDirection.value = 'asc'
+})
+
 const resetData = () => {
   if (confirm('This will clear all data and reload sample data. Continue?')) {
     localStorage.clear()
@@ -135,8 +210,7 @@ const resetData = () => {
             <small class="text-muted">points</small>
           </div>
         </div>
-
-        <div class="col-6 col-lg-3">
+      <div class="col-6 col-lg-3">
           <div class="glass-card stat-card p-3">
             <div class="d-flex align-items-center gap-2 mb-2">
               <i class="bi bi-exclamation-triangle text-warning"></i>
@@ -188,17 +262,28 @@ const resetData = () => {
                 placeholder="Search food items..."
               />
             </div>
-            <div class="col-6 col-md-4">
+            <div class="col-12 col-sm-6 col-md-3">
               <select v-model="selectedCategory" class="form-select">
-                <option v-for="cat in categories" :key="cat">{{ cat }}</option>
+                <option v-for="cat in categories" :key="cat" :value="cat">{{ cat }}</option>
               </select>
             </div>
-            <div class="col-6 col-md-4">
+            <div class="col-9 col-sm-4 col-md-3">
               <select v-model="sortBy" class="form-select">
                 <option value="expiration">Expiration Date</option>
-                <option value="name">Name</option>
+                <option value="name">Name (A-Z)</option>
                 <option value="category">Category</option>
+                <option value="quantity">Quantity (High-Low)</option>
+                <option value="price">Price (High-Low)</option>
               </select>
+            </div>
+            <div class="col-3 col-sm-2 col-md-2">
+              <button 
+                @click="toggleSortDirection"
+                class="btn btn-outline-secondary sort-direction-btn w-100"
+                :title="getSortButtonTitle"
+              >
+                <i :class="getSortButtonIcon"></i>
+              </button>
             </div>
           </div>
 
@@ -207,43 +292,45 @@ const resetData = () => {
             <p class="text-muted mt-3">No food items found</p>
           </div>
 
-          <div v-else class="d-flex flex-column gap-2">
-            <div
-              v-for="item in filteredFoodItems"
-              :key="item.id"
-              class="p-3 border rounded"
-              :class="getItemBackgroundClass(item)"
-            >
-              <div class="d-flex justify-content-between align-items-start mb-2">
-                <div>
-                  <h5 class="mb-1">
-                    {{ item.name }}
-                    <span
-                      class="badge ms-2"
-                      :class="getExpirationBadgeClass(getDaysUntilExpiration(item.expirationDate))"
-                    >
-                      {{ getExpirationText(getDaysUntilExpiration(item.expirationDate)) }}
-                    </span>
-                  </h5>
-                  <small class="text-muted">{{ item.category }}</small>
+          <div v-else class="inventory-container">
+            <div class="d-flex flex-column gap-2">
+              <div
+                v-for="item in filteredFoodItems"
+                :key="item.id"
+                class="p-3 border rounded"
+                :class="getItemBackgroundClass(item)"
+              >
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                  <div>
+                    <h5 class="mb-1">
+                      {{ item.name }}
+                      <span
+                        class="badge ms-2"
+                        :class="getExpirationBadgeClass(getDaysUntilExpiration(item.expirationDate))"
+                      >
+                        {{ getExpirationText(getDaysUntilExpiration(item.expirationDate)) }}
+                      </span>
+                    </h5>
+                    <small class="text-muted">{{ item.category }}</small>
+                  </div>
+                  <div class="text-end">
+                    <div class="fw-bold">${{ item.price.toFixed(2) }}</div>
+                    <small class="text-muted">{{ item.quantity }} {{ item.unit }}</small>
+                  </div>
                 </div>
-                <div class="text-end">
-                  <div class="fw-bold">${{ item.price.toFixed(2) }}</div>
-                  <small class="text-muted">{{ item.quantity }} {{ item.unit }}</small>
-                </div>
-              </div>
-              <div class="d-flex justify-content-between align-items-center">
-                <small class="text-muted">Expires: {{ formatDate(item.expirationDate) }}</small>
-                <div class="btn-group btn-group-sm">
-                  <button class="btn btn-outline-secondary btn-sm action-btn edit-btn" @click="openEditModal(item)">
-                    <i class="bi bi-pencil"></i> Edit
-                  </button>
-                  <button class="btn btn-success btn-sm action-btn use-btn" @click="openUseModal(item)">
-                    <i class="bi bi-check2"></i> Use
-                  </button>
-                  <button class="btn btn-outline-danger btn-sm action-btn delete-btn" @click="handleDeleteItem(item)">
-                    <i class="bi bi-trash"></i>
-                  </button>
+                <div class="d-flex justify-content-between align-items-center">
+                  <small class="text-muted">Expires: {{ formatDate(item.expirationDate) }}</small>
+                  <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-secondary btn-sm action-btn edit-btn" @click="openEditModal(item)">
+                      <i class="bi bi-pencil"></i> Edit
+                    </button>
+                    <button class="btn btn-success btn-sm action-btn use-btn" @click="openUseModal(item)">
+                      <i class="bi bi-check2"></i> Use
+                    </button>
+                    <button class="btn btn-outline-danger btn-sm action-btn delete-btn" @click="handleDeleteItem(item)">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -295,6 +382,30 @@ const resetData = () => {
 </template>
 
 <style scoped>
+.inventory-container {
+  max-height: 500px;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+.inventory-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.inventory-container::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 3px;
+}
+
+.inventory-container::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 3px;
+}
+
+.inventory-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.5);
+}
+
 .action-btn {
   border-radius: 6px;
   font-weight: 500;
@@ -375,6 +486,33 @@ const resetData = () => {
     width: 56px;
     height: 56px;
     font-size: 20px;
+  }
+}
+
+/* Sort direction button fixes for mobile */
+.sort-direction-btn {
+  min-width: 42px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.sort-direction-btn i {
+  font-size: 16px;
+  line-height: 1;
+}
+
+/* Ensure proper spacing on mobile */
+@media (max-width: 576px) {
+  .sort-direction-btn {
+    min-width: 48px;
+    height: 40px;
+  }
+  
+  .sort-direction-btn i {
+    font-size: 18px;
   }
 }
 </style>
